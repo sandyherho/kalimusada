@@ -10,6 +10,8 @@
 [![Matplotlib](https://img.shields.io/badge/Matplotlib-%23ffffff.svg?logo=Matplotlib&logoColor=black)](https://matplotlib.org/)
 [![Pandas](https://img.shields.io/badge/pandas-%23150458.svg?logo=pandas&logoColor=white)](https://pandas.pydata.org/)
 [![netCDF4](https://img.shields.io/badge/netCDF4-%23004B87.svg)](https://unidata.github.io/netcdf4-python/)
+[![imageio](https://img.shields.io/badge/imageio-%23172B4D.svg?logo=python&logoColor=white)](https://imageio.github.io/)
+[![tqdm](https://img.shields.io/badge/tqdm-%23FFC107.svg?logo=tqdm&logoColor=black)](https://tqdm.github.io/)
 
 A Python-based solver for demonstrating sensitivity to initial conditions in economic dynamics.
 
