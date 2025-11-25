@@ -22,6 +22,6 @@ save_png = true
 save_gif = true
 output_dir = outputs
 animation_fps = 30
-animation_dpi = 150
+animation_dpi = 100
 animation_skip = 16
 window_size = 1000

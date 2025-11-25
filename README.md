@@ -88,15 +88,6 @@ result = solver.solve(
 print(f"Max divergence: {result['max_euclidean_distance']:.6f}")
 ```
 
-## Output Structure
-```
-outputs/
-    csv/          # Solution and error metrics
-    netcdf/       # NetCDF4 files with full data
-    figs/         # Static PNG plots
-    gifs/         # Animated phase space
-logs/             # Detailed simulation logs
-```
 
 ## Author
 

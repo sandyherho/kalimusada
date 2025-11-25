@@ -2,26 +2,30 @@
 Professional visualization for Ma-Chen Financial Chaotic System.
 
 Creates static time series plots and animated 3D phase space visualizations.
+Optimized for smooth, elegant animations with reasonable generation time.
 """
 
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.ticker import MaxNLocator, AutoMinorLocator, MultipleLocator
 from mpl_toolkits.mplot3d import Axes3D
 from pathlib import Path
 from tqdm import tqdm
-from typing import Dict, Any
+from typing import Dict, Any, List
 import warnings
 
 warnings.filterwarnings('ignore')
+
+from PIL import Image
+import io
 
 
 class Animator:
     """
     Create professional visualizations for Ma-Chen chaotic dynamics.
+    Smooth, elegant animations with optimized rendering.
     """
     
     # Dark theme color palette
@@ -62,29 +66,18 @@ class Animator:
             'grid.alpha': 0.3,
             'legend.facecolor': self.COLOR_BG_LIGHTER,
             'legend.edgecolor': self.COLOR_GRID,
-            'font.size': 12,
-            'axes.labelsize': 14,
-            'axes.titlesize': 16,
-            'xtick.labelsize': 12,
-            'ytick.labelsize': 12,
-            'legend.fontsize': 12,
-            'axes.linewidth': 1.5,
-            'xtick.major.width': 1.5,
-            'ytick.major.width': 1.5,
-            'xtick.major.size': 6,
-            'ytick.major.size': 6,
+            'font.size': 11,
+            'axes.labelsize': 12,
+            'axes.titlesize': 14,
+            'xtick.labelsize': 10,
+            'ytick.labelsize': 10,
+            'legend.fontsize': 10,
+            'axes.linewidth': 1.2,
+            'lines.antialiased': True,
         })
     
     def _get_time_tick_spacing(self, t_max: float) -> tuple:
-        """
-        Determine appropriate tick spacing based on time range.
-        
-        Args:
-            t_max: Maximum time value
-            
-        Returns:
-            Tuple of (major_spacing, minor_divisions, tick_label_format)
-        """
+        """Determine appropriate tick spacing based on time range."""
         if t_max <= 50:
             return 5, 5, '{:.0f}'
         elif t_max <= 100:
@@ -100,16 +93,16 @@ class Animator:
         else:
             return 200, 4, '{:.0f}'
     
+    def _smooth_interpolate(self, start: float, end: float, n: int) -> np.ndarray:
+        """Create smooth eased interpolation between two values."""
+        t = np.linspace(0, 1, n)
+        # Smooth ease-in-out curve
+        smooth_t = t * t * (3 - 2 * t)
+        return start + (end - start) * smooth_t
+    
     def create_static_plot(self, result: Dict[str, Any], filepath: str,
                            title: str = "Ma-Chen Chaotic System"):
-        """
-        Create static time series plot with full time range.
-        
-        Args:
-            result: Simulation result dictionary
-            filepath: Output file path
-            title: Plot title
-        """
+        """Create static time series plot with full time range."""
         filepath = Path(filepath)
         filepath.parent.mkdir(parents=True, exist_ok=True)
         
@@ -125,10 +118,7 @@ class Animator:
         n_points = len(time)
         dt = (t_max - t_min) / (n_points - 1)
         
-        # Get appropriate tick spacing
         major_spacing, minor_divs, tick_fmt = self._get_time_tick_spacing(t_max)
-        
-        # Create dynamic x-axis label reflecting time units
         xlabel = f'Time $t$ (0 → {t_max:.0f} dimensionless units, $\\Delta t$ = {dt:.2e})'
         
         labels = [
@@ -140,32 +130,22 @@ class Animator:
         for i, (name, ylabel, key) in enumerate(labels):
             ax = fig.add_subplot(gs[i, 0], facecolor=self.COLOR_BG_LIGHTER)
             
-            # Get data for this variable
             data_A = result['sol_A'][key]
             data_B = result['sol_B'][key]
             
-            # Glow effect (slightly thicker lines behind for glow)
-            ax.plot(time, data_A,
-                   color=self.COLOR_A, lw=4, alpha=0.2)
-            ax.plot(time, data_B,
-                   color=self.COLOR_B, lw=4, alpha=0.2)
+            # Glow + main lines
+            ax.plot(time, data_A, color=self.COLOR_A, lw=4, alpha=0.2)
+            ax.plot(time, data_B, color=self.COLOR_B, lw=4, alpha=0.2)
+            ax.plot(time, data_A, color=self.COLOR_A, lw=1.5, label='Economy A', alpha=0.95)
+            ax.plot(time, data_B, color=self.COLOR_B, lw=1.5, label='Economy B (Perturbed)', alpha=0.95)
             
-            # Main lines - plot ALL points
-            ax.plot(time, data_A,
-                   color=self.COLOR_A, lw=1.5, label='Economy A', alpha=0.95)
-            ax.plot(time, data_B,
-                   color=self.COLOR_B, lw=1.5, label='Economy B (Perturbed)', alpha=0.95)
-            
-            # Set explicit x-axis limits to show full time range
             ax.set_xlim(t_min, t_max)
             
-            # Auto-scale y-axis with some padding
             y_min = min(data_A.min(), data_B.min())
             y_max = max(data_A.max(), data_B.max())
             y_padding = (y_max - y_min) * 0.05
             ax.set_ylim(y_min - y_padding, y_max + y_padding)
             
-            # Configure x-axis ticks with fixed spacing
             ax.xaxis.set_major_locator(MultipleLocator(major_spacing))
             ax.xaxis.set_minor_locator(AutoMinorLocator(minor_divs))
             ax.yaxis.set_major_locator(MaxNLocator(nbins=8))
@@ -177,11 +157,8 @@ class Animator:
             ax.tick_params(colors=self.COLOR_TEXT, labelsize=12, width=1.5, length=6)
             ax.tick_params(which='minor', colors=self.COLOR_TEXT, width=1, length=3)
             
-            # Grid for both major and minor ticks
-            ax.grid(True, which='major', alpha=0.4, color=self.COLOR_GRID, 
-                   linestyle='-', linewidth=0.8)
-            ax.grid(True, which='minor', alpha=0.15, color=self.COLOR_GRID, 
-                   linestyle='-', linewidth=0.5)
+            ax.grid(True, which='major', alpha=0.4, color=self.COLOR_GRID, linestyle='-', linewidth=0.8)
+            ax.grid(True, which='minor', alpha=0.15, color=self.COLOR_GRID, linestyle='-', linewidth=0.5)
             
             for spine in ax.spines.values():
                 spine.set_color(self.COLOR_GRID)
@@ -193,7 +170,6 @@ class Animator:
             if i == 2:
                 ax.set_xlabel(xlabel, fontsize=14, fontweight='bold', color=self.COLOR_TEXT)
         
-        # Add info text showing simulation details
         info_text = f'N = {n_points:,} points | Major ticks: Δ = {major_spacing:.0f}'
         fig.text(0.98, 0.01, info_text, fontsize=10, color=self.COLOR_TEXT,
                 ha='right', va='bottom', alpha=0.7)
@@ -203,15 +179,15 @@ class Animator:
         plt.close(fig)
     
     def create_animation(self, result: Dict[str, Any], filepath: str,
-                         title: str = "Ma-Chen Chaotic System", skip: int = 8):
+                         title: str = "Ma-Chen Chaotic System", skip: int = None):
         """
-        Create animated 3D phase space visualization.
+        Create smooth, elegant animated 3D phase space visualization.
         
         Args:
             result: Simulation result dictionary
             filepath: Output file path
             title: Animation title
-            skip: Frame skip factor (use every nth point)
+            skip: Frame skip (auto-calculated if None)
         """
         filepath = Path(filepath)
         filepath.parent.mkdir(parents=True, exist_ok=True)
@@ -221,147 +197,164 @@ class Animator:
         sol_A = result['sol_A']
         sol_B = result['sol_B']
         t_max = time[-1]
-        
-        # Setup figure
-        fig = plt.figure(figsize=(14, 12), facecolor=self.COLOR_BG)
-        ax = fig.add_subplot(111, projection='3d', facecolor=self.COLOR_BG)
-        
-        # Fixed axis limits
-        pad = 0.15
-        x_range = [min(sol_A['x'].min(), sol_B['x'].min()) - pad,
-                  max(sol_A['x'].max(), sol_B['x'].max()) + pad]
-        y_range = [min(sol_A['y'].min(), sol_B['y'].min()) - pad,
-                  max(sol_A['y'].max(), sol_B['y'].max()) + pad]
-        z_range = [min(sol_A['z'].min(), sol_B['z'].min()) - pad,
-                  max(sol_A['z'].max(), sol_B['z'].max()) + pad]
-        
-        ax.set_xlim(x_range)
-        ax.set_ylim(y_range)
-        ax.set_zlim(z_range)
-        
-        # Aesthetics
-        ax.set_xlabel("Interest Rate ($x$)", fontsize=14, fontweight='bold',
-                     color=self.COLOR_TEXT, labelpad=14)
-        ax.set_ylabel("Investment ($y$)", fontsize=14, fontweight='bold',
-                     color=self.COLOR_TEXT, labelpad=14)
-        ax.set_zlabel("Prices ($z$)", fontsize=14, fontweight='bold',
-                     color=self.COLOR_TEXT, labelpad=14)
-        ax.set_title(f"{title}\nButterfly Effect in Financial Dynamics (t: 0 → {t_max:.0f})",
-                    fontsize=18, color=self.COLOR_TITLE, fontweight='bold', pad=20)
-        
-        # Dark 3D panes
-        ax.xaxis.pane.fill = True
-        ax.yaxis.pane.fill = True
-        ax.zaxis.pane.fill = True
-        ax.xaxis.pane.set_facecolor(self.COLOR_BG_LIGHTER)
-        ax.yaxis.pane.set_facecolor(self.COLOR_BG_LIGHTER)
-        ax.zaxis.pane.set_facecolor(self.COLOR_BG_LIGHTER)
-        ax.xaxis.pane.set_edgecolor(self.COLOR_GRID)
-        ax.yaxis.pane.set_edgecolor(self.COLOR_GRID)
-        ax.zaxis.pane.set_edgecolor(self.COLOR_GRID)
-        ax.xaxis._axinfo['grid']['color'] = self.COLOR_GRID
-        ax.yaxis._axinfo['grid']['color'] = self.COLOR_GRID
-        ax.zaxis._axinfo['grid']['color'] = self.COLOR_GRID
-        ax.tick_params(colors=self.COLOR_TEXT, labelsize=11, width=1.5, length=6)
-        
-        # Initialize plot elements
-        glow_A, = ax.plot([], [], [], lw=4.0, color=self.COLOR_A, alpha=0.25)
-        glow_B, = ax.plot([], [], [], lw=4.0, color=self.COLOR_B, alpha=0.25)
-        trace_A, = ax.plot([], [], [], lw=1.2, color=self.COLOR_A, alpha=0.8, label='Economy A')
-        trace_B, = ax.plot([], [], [], lw=1.2, color=self.COLOR_B, alpha=0.8, label='Economy B')
-        trail_A, = ax.plot([], [], [], lw=3.0, color=self.COLOR_A, alpha=1.0)
-        trail_B, = ax.plot([], [], [], lw=3.0, color=self.COLOR_B, alpha=1.0)
-        head_A, = ax.plot([], [], [], 'o', color=self.COLOR_A, markersize=12,
-                         markeredgecolor='white', markeredgewidth=2)
-        head_B, = ax.plot([], [], [], 'o', color=self.COLOR_B, markersize=12,
-                         markeredgecolor='white', markeredgewidth=2)
-        
-        ax.legend(loc='upper left', framealpha=0.9, fontsize=13,
-                 facecolor=self.COLOR_BG_LIGHTER, edgecolor=self.COLOR_GRID)
-        
-        time_text = ax.text2D(0.02, 0.95, '', transform=ax.transAxes,
-                             fontsize=14, fontweight='bold', color=self.COLOR_ACCENT)
-        
-        # Pre-compute frame indices
         n_points = len(time)
-        frame_indices = list(range(0, n_points, skip))
+        
+        # Target 1000 frames
+        target_frames = 1000
+        skip = max(1, n_points // target_frames)
+        
+        # Frame indices
+        frame_indices = np.arange(0, n_points, skip)
         n_frames = len(frame_indices)
         
-        print(f"      Preparing {n_frames} frames...")
+        # Pre-extract arrays
+        x_A, y_A, z_A = sol_A['x'], sol_A['y'], sol_A['z']
+        x_B, y_B, z_B = sol_B['x'], sol_B['y'], sol_B['z']
         
-        def init():
-            for line in [glow_A, glow_B, trace_A, trace_B, trail_A, trail_B]:
-                line.set_data([], [])
-                line.set_3d_properties([])
-            for head in [head_A, head_B]:
-                head.set_data([], [])
-                head.set_3d_properties([])
-            time_text.set_text('')
-            return (glow_A, glow_B, trace_A, trace_B, trail_A, trail_B,
-                   head_A, head_B, time_text)
+        # Fixed axis limits with padding
+        pad = 0.2
+        x_range = [min(x_A.min(), x_B.min()) - pad, max(x_A.max(), x_B.max()) + pad]
+        y_range = [min(y_A.min(), y_B.min()) - pad, max(y_A.max(), y_B.max()) + pad]
+        z_range = [min(z_A.min(), z_B.min()) - pad, max(z_A.max(), z_B.max()) + pad]
         
-        def update(frame):
-            idx = frame_indices[frame]
-            
-            # Glow layer
-            glow_A.set_data(sol_A['x'][:idx], sol_A['y'][:idx])
-            glow_A.set_3d_properties(sol_A['z'][:idx])
-            glow_B.set_data(sol_B['x'][:idx], sol_B['y'][:idx])
-            glow_B.set_3d_properties(sol_B['z'][:idx])
-            
-            # Full trace
-            trace_A.set_data(sol_A['x'][:idx], sol_A['y'][:idx])
-            trace_A.set_3d_properties(sol_A['z'][:idx])
-            trace_B.set_data(sol_B['x'][:idx], sol_B['y'][:idx])
-            trace_B.set_3d_properties(sol_B['z'][:idx])
-            
-            # Recent trail
-            trail_len = 200
-            start = max(0, idx - trail_len)
-            trail_A.set_data(sol_A['x'][start:idx], sol_A['y'][start:idx])
-            trail_A.set_3d_properties(sol_A['z'][start:idx])
-            trail_B.set_data(sol_B['x'][start:idx], sol_B['y'][start:idx])
-            trail_B.set_3d_properties(sol_B['z'][start:idx])
-            
-            # Current position heads
-            head_A.set_data([sol_A['x'][idx]], [sol_A['y'][idx]])
-            head_A.set_3d_properties([sol_A['z'][idx]])
-            head_B.set_data([sol_B['x'][idx]], [sol_B['y'][idx]])
-            head_B.set_3d_properties([sol_B['z'][idx]])
-            
-            # Time annotation with max time reference
-            time_text.set_text(f't = {time[idx]:.1f} / {t_max:.0f}')
-            
-            # Rotation
-            ax.view_init(elev=20 + 5 * np.sin(frame * 0.02), azim=frame * 0.3)
-            
-            return (glow_A, glow_B, trace_A, trace_B, trail_A, trail_B,
-                   head_A, head_B, time_text)
+        # Trail length for bright recent path
+        trail_len = min(600, n_points // 6)
         
-        # Create animation
-        ani = FuncAnimation(fig, update, frames=n_frames, init_func=init,
-                           blit=False, interval=1000//self.fps)
+        # Animation settings - balanced quality and speed
+        anim_dpi = 100
+        fig_size = (11, 9)
         
-        # Progress tracking wrapper for saving
-        class ProgressCallback:
-            def __init__(self, total):
-                self.pbar = tqdm(total=total, desc="      Saving",
-                               ncols=70,
-                               bar_format='{desc}: {percentage:3.0f}%|{bar}| {n}/{total}')
-            
-            def __call__(self, current_frame, total_frames):
-                self.pbar.update(1)
-            
-            def close(self):
-                self.pbar.close()
+        print(f"      Generating {n_frames} frames (smooth mode)...")
         
-        progress = ProgressCallback(n_frames)
+        # Smooth rotation - gentle oscillation
+        elevs = 22 + 8 * np.sin(np.linspace(0, 1.5 * np.pi, n_frames))
+        azims = self._smooth_interpolate(35, 155, n_frames)
+        
+        # Subsample factor for historical trace (keeps recent trail full res)
+        hist_subsample = max(1, skip // 3)
+        
+        # Render frames
+        frames = []
+        
+        for i, idx in enumerate(tqdm(frame_indices, 
+                                      desc="      Rendering",
+                                      ncols=70,
+                                      bar_format='{desc}: {percentage:3.0f}%|{bar}| {n}/{total}')):
+            
+            fig = plt.figure(figsize=fig_size, facecolor=self.COLOR_BG, dpi=anim_dpi)
+            ax = fig.add_subplot(111, projection='3d', facecolor=self.COLOR_BG)
+            
+            # Smooth view angle
+            ax.view_init(elev=elevs[i], azim=azims[i])
+            ax.set_xlim(x_range)
+            ax.set_ylim(y_range)
+            ax.set_zlim(z_range)
+            
+            # Historical trace boundary
+            trail_start = max(0, idx - trail_len)
+            hist_end = trail_start
+            
+            # === LAYER 1: Historical trace (faded, subsampled) ===
+            if hist_end > hist_subsample:
+                hist_slice = slice(0, hist_end, hist_subsample)
+                ax.plot(x_A[hist_slice], y_A[hist_slice], z_A[hist_slice],
+                       lw=0.8, color=self.COLOR_A, alpha=0.25)
+                ax.plot(x_B[hist_slice], y_B[hist_slice], z_B[hist_slice],
+                       lw=0.8, color=self.COLOR_B, alpha=0.25)
+            
+            # === LAYER 2: Recent trail with glow effect ===
+            if idx > trail_start:
+                # Outer glow
+                ax.plot(x_A[trail_start:idx], y_A[trail_start:idx], z_A[trail_start:idx],
+                       lw=6, color=self.COLOR_A, alpha=0.15)
+                ax.plot(x_B[trail_start:idx], y_B[trail_start:idx], z_B[trail_start:idx],
+                       lw=6, color=self.COLOR_B, alpha=0.15)
+                
+                # Mid glow
+                ax.plot(x_A[trail_start:idx], y_A[trail_start:idx], z_A[trail_start:idx],
+                       lw=3.5, color=self.COLOR_A, alpha=0.4)
+                ax.plot(x_B[trail_start:idx], y_B[trail_start:idx], z_B[trail_start:idx],
+                       lw=3.5, color=self.COLOR_B, alpha=0.4)
+                
+                # Core line
+                ax.plot(x_A[trail_start:idx], y_A[trail_start:idx], z_A[trail_start:idx],
+                       lw=1.8, color=self.COLOR_A, alpha=0.95)
+                ax.plot(x_B[trail_start:idx], y_B[trail_start:idx], z_B[trail_start:idx],
+                       lw=1.8, color=self.COLOR_B, alpha=0.95)
+            
+            # === LAYER 3: Current position markers with glow ===
+            # Outer glow
+            ax.scatter([x_A[idx]], [y_A[idx]], [z_A[idx]],
+                      s=250, c=self.COLOR_A, alpha=0.3, zorder=9)
+            ax.scatter([x_B[idx]], [y_B[idx]], [z_B[idx]],
+                      s=250, c=self.COLOR_B, alpha=0.3, zorder=9)
+            # Core marker
+            ax.scatter([x_A[idx]], [y_A[idx]], [z_A[idx]],
+                      s=100, c=self.COLOR_A, edgecolors='white', linewidths=2, zorder=10)
+            ax.scatter([x_B[idx]], [y_B[idx]], [z_B[idx]],
+                      s=100, c=self.COLOR_B, edgecolors='white', linewidths=2, zorder=10)
+            
+            # === Labels and styling ===
+            ax.set_xlabel("Interest Rate ($x$)", fontsize=11, fontweight='bold',
+                         color=self.COLOR_TEXT, labelpad=8)
+            ax.set_ylabel("Investment ($y$)", fontsize=11, fontweight='bold',
+                         color=self.COLOR_TEXT, labelpad=8)
+            ax.set_zlabel("Price Index ($z$)", fontsize=11, fontweight='bold',
+                         color=self.COLOR_TEXT, labelpad=8)
+            ax.set_title(f"{title}\nButterfly Effect in Financial Dynamics",
+                        fontsize=14, color=self.COLOR_TITLE, fontweight='bold', pad=12)
+            
+            # Time annotation
+            ax.text2D(0.02, 0.95, f't = {time[idx]:.1f} / {t_max:.0f}',
+                     transform=ax.transAxes, fontsize=12, fontweight='bold',
+                     color=self.COLOR_ACCENT,
+                     bbox=dict(boxstyle='round,pad=0.3', facecolor=self.COLOR_BG_LIGHTER, 
+                              edgecolor=self.COLOR_GRID, alpha=0.8))
+            
+            # Dark 3D panes
+            ax.xaxis.pane.fill = True
+            ax.yaxis.pane.fill = True
+            ax.zaxis.pane.fill = True
+            ax.xaxis.pane.set_facecolor(self.COLOR_BG_LIGHTER)
+            ax.yaxis.pane.set_facecolor(self.COLOR_BG_LIGHTER)
+            ax.zaxis.pane.set_facecolor(self.COLOR_BG_LIGHTER)
+            ax.xaxis.pane.set_edgecolor(self.COLOR_GRID)
+            ax.yaxis.pane.set_edgecolor(self.COLOR_GRID)
+            ax.zaxis.pane.set_edgecolor(self.COLOR_GRID)
+            ax.xaxis._axinfo['grid']['color'] = self.COLOR_GRID
+            ax.yaxis._axinfo['grid']['color'] = self.COLOR_GRID
+            ax.zaxis._axinfo['grid']['color'] = self.COLOR_GRID
+            ax.tick_params(colors=self.COLOR_TEXT, labelsize=9)
+            
+            # Legend
+            ax.plot([], [], [], lw=2.5, color=self.COLOR_A, label='Economy A')
+            ax.plot([], [], [], lw=2.5, color=self.COLOR_B, label='Economy B (perturbed)')
+            ax.legend(loc='upper right', fontsize=10, framealpha=0.9,
+                     facecolor=self.COLOR_BG_LIGHTER, edgecolor=self.COLOR_GRID)
+            
+            # Render to buffer
+            fig.tight_layout(pad=1.0)
+            
+            buf = io.BytesIO()
+            fig.savefig(buf, format='png', dpi=anim_dpi, 
+                       facecolor=self.COLOR_BG, edgecolor='none')
+            buf.seek(0)
+            frames.append(Image.open(buf).copy())
+            buf.close()
+            plt.close(fig)
         
         # Save GIF
-        writer = PillowWriter(fps=self.fps)
-        ani.save(str(filepath), writer=writer,
-                savefig_kwargs={'facecolor': self.COLOR_BG, 'edgecolor': 'none'},
-                progress_callback=progress)
-        progress.close()
+        print(f"      Saving GIF ({n_frames} frames at {self.fps} fps)...")
         
-        plt.close(fig)
+        duration = int(1000 / self.fps)
+        
+        frames[0].save(
+            str(filepath),
+            save_all=True,
+            append_images=frames[1:],
+            duration=duration,
+            loop=0,
+            optimize=False
+        )
+        
+        print(f"      Done! Saved to {filepath.name}")
