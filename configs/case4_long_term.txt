@@ -1,0 +1,27 @@
+# Case 4: Long-Term Evolution
+# Extended simulation to observe long-term chaotic behavior
+scenario_name = Case 4 - Long Term Evolution
+a = 0.9
+b = 0.2
+c = 1.2
+t_start = 0.0
+t_end = 500.0
+n_points = 200000
+init_A_x = 1.0
+init_A_y = 2.0
+init_A_z = 0.5
+init_B_x = 1.0000001
+init_B_y = 2.0
+init_B_z = 0.5
+rtol = 1e-10
+atol = 1e-12
+method = LSODA
+save_csv = true
+save_netcdf = true
+save_png = true
+save_gif = true
+output_dir = outputs
+animation_fps = 30
+animation_dpi = 150
+animation_skip = 16
+window_size = 1000
