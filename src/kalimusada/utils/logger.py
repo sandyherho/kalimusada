@@ -1,6 +1,7 @@
 """Comprehensive simulation logger for Ma-Chen chaotic system simulations."""
 
 import logging
+import numpy as np
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any
@@ -203,7 +204,6 @@ class SimulationLogger:
         valid_mask = ~np.isinf(log_div) & ~np.isnan(log_div)
         if np.sum(valid_mask) > 100:
             # Linear fit to log divergence
-            import numpy as np
             t_valid = time[valid_mask]
             ld_valid = log_div[valid_mask]
             # Use first half for fit (before saturation)
@@ -245,7 +245,3 @@ class SimulationLogger:
         self.info(f"Simulation completed: {self.scenario_name}")
         self.info(f"Timestamp: {datetime.now().isoformat()}")
         self.info("=" * 70)
-
-
-# Import numpy for log_results
-import numpy as np

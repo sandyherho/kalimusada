@@ -9,6 +9,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
+from matplotlib.ticker import MaxNLocator, AutoMinorLocator, MultipleLocator
 from mpl_toolkits.mplot3d import Axes3D
 from pathlib import Path
 from tqdm import tqdm
@@ -74,10 +75,35 @@ class Animator:
             'ytick.major.size': 6,
         })
     
+    def _get_time_tick_spacing(self, t_max: float) -> tuple:
+        """
+        Determine appropriate tick spacing based on time range.
+        
+        Args:
+            t_max: Maximum time value
+            
+        Returns:
+            Tuple of (major_spacing, minor_divisions, tick_label_format)
+        """
+        if t_max <= 50:
+            return 5, 5, '{:.0f}'
+        elif t_max <= 100:
+            return 10, 5, '{:.0f}'
+        elif t_max <= 200:
+            return 25, 5, '{:.0f}'
+        elif t_max <= 300:
+            return 50, 5, '{:.0f}'
+        elif t_max <= 500:
+            return 50, 5, '{:.0f}'
+        elif t_max <= 1000:
+            return 100, 5, '{:.0f}'
+        else:
+            return 200, 4, '{:.0f}'
+    
     def create_static_plot(self, result: Dict[str, Any], filepath: str,
                            title: str = "Ma-Chen Chaotic System"):
         """
-        Create static time series plot.
+        Create static time series plot with full time range.
         
         Args:
             result: Simulation result dictionary
@@ -87,7 +113,7 @@ class Animator:
         filepath = Path(filepath)
         filepath.parent.mkdir(parents=True, exist_ok=True)
         
-        fig = plt.figure(figsize=(16, 14), facecolor=self.COLOR_BG)
+        fig = plt.figure(figsize=(18, 14), facecolor=self.COLOR_BG)
         fig.suptitle(f'{title}\nSensitivity to Initial Conditions',
                     fontsize=22, fontweight='bold', color=self.COLOR_TITLE, y=0.97)
         
@@ -95,6 +121,16 @@ class Animator:
                              hspace=0.35, left=0.08, right=0.96, top=0.90, bottom=0.06)
         
         time = result['time']
+        t_min, t_max = time[0], time[-1]
+        n_points = len(time)
+        dt = (t_max - t_min) / (n_points - 1)
+        
+        # Get appropriate tick spacing
+        major_spacing, minor_divs, tick_fmt = self._get_time_tick_spacing(t_max)
+        
+        # Create dynamic x-axis label reflecting time units
+        xlabel = f'Time $t$ (0 → {t_max:.0f} dimensionless units, $\\Delta t$ = {dt:.2e})'
+        
         labels = [
             ('Interest Rate', '$x(t)$', 'x'),
             ('Investment Demand', '$y(t)$', 'y'),
@@ -104,23 +140,48 @@ class Animator:
         for i, (name, ylabel, key) in enumerate(labels):
             ax = fig.add_subplot(gs[i, 0], facecolor=self.COLOR_BG_LIGHTER)
             
-            # Glow effect
-            ax.plot(time, result['sol_A'][key],
+            # Get data for this variable
+            data_A = result['sol_A'][key]
+            data_B = result['sol_B'][key]
+            
+            # Glow effect (slightly thicker lines behind for glow)
+            ax.plot(time, data_A,
                    color=self.COLOR_A, lw=4, alpha=0.2)
-            ax.plot(time, result['sol_B'][key],
+            ax.plot(time, data_B,
                    color=self.COLOR_B, lw=4, alpha=0.2)
             
-            # Main lines
-            ax.plot(time, result['sol_A'][key],
-                   color=self.COLOR_A, lw=1.8, label='Economy A', alpha=0.95)
-            ax.plot(time, result['sol_B'][key],
-                   color=self.COLOR_B, lw=1.8, label='Economy B (Perturbed)', alpha=0.95)
+            # Main lines - plot ALL points
+            ax.plot(time, data_A,
+                   color=self.COLOR_A, lw=1.5, label='Economy A', alpha=0.95)
+            ax.plot(time, data_B,
+                   color=self.COLOR_B, lw=1.5, label='Economy B (Perturbed)', alpha=0.95)
+            
+            # Set explicit x-axis limits to show full time range
+            ax.set_xlim(t_min, t_max)
+            
+            # Auto-scale y-axis with some padding
+            y_min = min(data_A.min(), data_B.min())
+            y_max = max(data_A.max(), data_B.max())
+            y_padding = (y_max - y_min) * 0.05
+            ax.set_ylim(y_min - y_padding, y_max + y_padding)
+            
+            # Configure x-axis ticks with fixed spacing
+            ax.xaxis.set_major_locator(MultipleLocator(major_spacing))
+            ax.xaxis.set_minor_locator(AutoMinorLocator(minor_divs))
+            ax.yaxis.set_major_locator(MaxNLocator(nbins=8))
+            ax.yaxis.set_minor_locator(AutoMinorLocator(2))
             
             ax.set_title(f'{name} - Chaotic Dynamics', fontsize=16,
                         fontweight='bold', color=self.COLOR_TITLE, pad=12)
             ax.set_ylabel(ylabel, fontsize=15, fontweight='bold', color=self.COLOR_TEXT)
             ax.tick_params(colors=self.COLOR_TEXT, labelsize=12, width=1.5, length=6)
-            ax.grid(True, alpha=0.3, color=self.COLOR_GRID, linestyle='-', linewidth=0.8)
+            ax.tick_params(which='minor', colors=self.COLOR_TEXT, width=1, length=3)
+            
+            # Grid for both major and minor ticks
+            ax.grid(True, which='major', alpha=0.4, color=self.COLOR_GRID, 
+                   linestyle='-', linewidth=0.8)
+            ax.grid(True, which='minor', alpha=0.15, color=self.COLOR_GRID, 
+                   linestyle='-', linewidth=0.5)
             
             for spine in ax.spines.values():
                 spine.set_color(self.COLOR_GRID)
@@ -130,7 +191,12 @@ class Animator:
                 ax.legend(loc='upper right', framealpha=0.9, fontsize=12,
                          facecolor=self.COLOR_BG_LIGHTER, edgecolor=self.COLOR_GRID)
             if i == 2:
-                ax.set_xlabel('Time', fontsize=15, fontweight='bold', color=self.COLOR_TEXT)
+                ax.set_xlabel(xlabel, fontsize=14, fontweight='bold', color=self.COLOR_TEXT)
+        
+        # Add info text showing simulation details
+        info_text = f'N = {n_points:,} points | Major ticks: Δ = {major_spacing:.0f}'
+        fig.text(0.98, 0.01, info_text, fontsize=10, color=self.COLOR_TEXT,
+                ha='right', va='bottom', alpha=0.7)
         
         plt.savefig(filepath, dpi=self.dpi, facecolor=self.COLOR_BG,
                    edgecolor='none', bbox_inches='tight')
@@ -154,6 +220,7 @@ class Animator:
         time = result['time']
         sol_A = result['sol_A']
         sol_B = result['sol_B']
+        t_max = time[-1]
         
         # Setup figure
         fig = plt.figure(figsize=(14, 12), facecolor=self.COLOR_BG)
@@ -179,7 +246,7 @@ class Animator:
                      color=self.COLOR_TEXT, labelpad=14)
         ax.set_zlabel("Prices ($z$)", fontsize=14, fontweight='bold',
                      color=self.COLOR_TEXT, labelpad=14)
-        ax.set_title(f"{title}\nButterfly Effect in Financial Dynamics",
+        ax.set_title(f"{title}\nButterfly Effect in Financial Dynamics (t: 0 → {t_max:.0f})",
                     fontsize=18, color=self.COLOR_TITLE, fontweight='bold', pad=20)
         
         # Dark 3D panes
@@ -262,8 +329,8 @@ class Animator:
             head_B.set_data([sol_B['x'][idx]], [sol_B['y'][idx]])
             head_B.set_3d_properties([sol_B['z'][idx]])
             
-            # Time annotation
-            time_text.set_text(f't = {time[idx]:.1f}')
+            # Time annotation with max time reference
+            time_text.set_text(f't = {time[idx]:.1f} / {t_max:.0f}')
             
             # Rotation
             ax.view_init(elev=20 + 5 * np.sin(frame * 0.02), azim=frame * 0.3)
