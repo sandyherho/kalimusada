@@ -21,7 +21,7 @@ A Python-based solver for demonstrating sensitivity to initial conditions in eco
 
 The Ma-Chen system describes financial dynamics through three coupled ordinary differential equations:
 
-$$\begin{cases} \dot{x} = z + (y - a)x \\ \dot{y} = 1 - by - x^2 \\ \dot{z} = -x - cz \end{cases}$$
+$$ \dot{x} = z + (y - a)x, \quad \dot{y} = 1 - by - x^2, \quad \dot{z} = -x - cz $$
 
 where the state variables are:
 
