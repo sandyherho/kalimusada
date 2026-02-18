@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "kalimusada"
-version = "0.0.1"
+version = "0.0.2"
 description = "Ma-Chen Financial Chaotic System Solver with Sensitivity Analysis"
 authors = ["Sandy H. S. Herho"]
 license = "MIT"

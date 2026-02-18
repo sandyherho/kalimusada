@@ -163,8 +163,8 @@ class DataHandler:
             system = result['system']
             nc.title = f"Ma-Chen Financial Chaotic System Simulation"
             nc.scenario_name = config.get('scenario_name', 'unknown')
-            nc.institution = "kalimusada"
-            nc.source = "kalimusada v0.0.1"
+            nc.institution = "Ronin Institute"
+            nc.source = "kalimusada v0.0.2"
             nc.history = f"Created {datetime.now().isoformat()}"
             nc.Conventions = "CF-1.8"
             
