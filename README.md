@@ -98,10 +98,14 @@ MIT © Sandy H. S. Herho
 ## Citation
 
 ```bibtex
-@software{herho2025_kalimusada,
-  title   = {kalimusada: A Python library for solving the Ma-Chen financial chaotic system},
-  author  = {Herho, Sandy H. S.},
-  year    = {2025},
-  url     = {https://github.com/sandyherho/kalimusada}
+@article{herho2026butterfly,
+  title = {{T}he butterfly effect in economics: {E}xploring chaos with a simple financial model},
+  author = {Herho, Sandy H. S.},
+  journal = {CODEE Journal},
+  volume = {20},
+  number = {1},
+  pages = {1},
+  year = {2026},
+  note = {https://scholarship.claremont.edu/codee/vol20/iss1/1}
 }
 ```
